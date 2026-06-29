@@ -1,0 +1,1 @@
+This directory attemts to develop an algorithm for a pursuer to ensure capture n independent evaders. This algorihtm is designed to be implemented on a real-time experimental test bed consisting of an Optitrack motion capture system and Lego EV3 bots.

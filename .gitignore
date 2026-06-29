@@ -1,0 +1,19 @@
+*.asv
+*.autosave
+*.slxc
+*.slxp
+*.mex*
+*.p
+*.log
+
+# macOS
+.DS_Store
+
+# MATLAB preferences
+prefdir/
+
+# Build artifacts
+build/
+
+# Temporary files
+*.tmp
