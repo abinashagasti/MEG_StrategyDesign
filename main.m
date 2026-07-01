@@ -15,3 +15,4 @@ env = Environment(n,timestep,pursuer_position,evader_positions,target_position);
 
 %%
 
+[done, history] = env.simulate(10000, true);

@@ -18,7 +18,7 @@ classdef Environment < handle
 
     methods
 
-        function env = Environment(n, timestep, pursuer_position, evader_positions, target_position)
+        function env = Environment(n, timestep, tolerance, pursuer_position, evader_positions, target_position)
             env.evader_numbers = n;
             env.motion_space_dimension = 2;
             env.pursuer_speed = 1;
@@ -26,7 +26,7 @@ classdef Environment < handle
             env.timestep = timestep;
             env.captured_evaders = boolean(zeros(1,env.evader_numbers));
             env.evaders = Evader.empty(env.evader_numbers,0);
-            env.capture_tolerance = 0.1; 
+            env.capture_tolerance = tolerance; 
             env.alpha = env.evader_speeds/env.pursuer_speed;
             env.convex_optimization_flag = 0;
             % This is not required and must be removed in future iteration.
@@ -164,7 +164,7 @@ classdef Environment < handle
             end
         end
 
-        function done = step(env, objective_function)
+        function done = step(env)
             % This is a step function which takes a single step in the
             % sample and hold formulation. 
 
@@ -195,12 +195,106 @@ classdef Environment < handle
             % Check win condition to pass as input to determine agent
             % velocities
             win = env.check_initialization(env.evaders(evader_list(~env.captured_evaders)),false);
-            pursuer_velocity = env.pursuer.heading_velocity(env.return_evader_positions(env.evaders(evader_list(~env.captured_evaders))), env.target_position, env.timestep, win, objective_function);
+            pursuer_velocity = env.pursuer.optimal_pursuer_heading(env.return_evader_positions(env.evaders(evader_list(~env.captured_evaders))),env.target_position,env.timestep,win);
             evader_velocities = env.return_evader_velocities();
             % Update agent positions after obtaining their velocities.
             env.pursuer.updatePos(env.pursuer.position + env.timestep*pursuer_velocity);
             for i=evader_list(~env.captured_evaders)
                 env.evaders(i).updatePos(env.evaders(i).position + env.timestep*evader_velocities(:,i));
+            end
+        end
+
+        function [done, history] = simulate(env, max_steps, plot_flag)
+            % Simulates the game until termination or until max_steps.
+            if nargin < 2 || isempty(max_steps)
+                max_steps = 10000;
+            end
+            if nargin < 3 || isempty(plot_flag)
+                plot_flag = false;
+            end
+
+            pursuer_positions = zeros(env.motion_space_dimension, max_steps + 1);
+            evader_positions = zeros(env.motion_space_dimension, env.evader_numbers, max_steps + 1);
+            captured_evaders = false(env.evader_numbers, max_steps + 1);
+            time = zeros(1, max_steps + 1);
+
+            pursuer_positions(:,1) = env.pursuer.position;
+            for i=1:env.evader_numbers
+                evader_positions(:,i,1) = env.evaders(i).position;
+            end
+            captured_evaders(:,1) = env.captured_evaders';
+
+            if plot_flag
+                figure
+                hold on
+                grid on
+                axis equal
+                xlabel('x')
+                ylabel('y')
+                title('Pursuer-Evader Simulation')
+
+                pursuer_traj_plot = plot(pursuer_positions(1,1), pursuer_positions(2,1), 'r-', 'LineWidth', 1.5);
+                pursuer_current_plot = plot(pursuer_positions(1,1), pursuer_positions(2,1), 'r.', 'MarkerSize', 30);
+                evader_traj_plots = gobjects(1, env.evader_numbers);
+                evader_current_plots = gobjects(1, env.evader_numbers);
+                for i=1:env.evader_numbers
+                    evader_traj_plots(i) = plot(evader_positions(1,i,1), evader_positions(2,i,1), 'b-', 'LineWidth', 1.5);
+                    evader_current_plots(i) = plot(evader_positions(1,i,1), evader_positions(2,i,1), 'b.', 'MarkerSize', 30);
+                end
+                plot(env.target_position(1), env.target_position(2), 'g.', 'MarkerSize', 30)
+                drawnow
+            end
+
+            done = false;
+            step_count = 0;
+            while ~done && step_count < max_steps
+                done = env.step();
+                step_count = step_count + 1;
+
+                time(step_count + 1) = step_count * env.timestep;
+                pursuer_positions(:,step_count + 1) = env.pursuer.position;
+                for i=1:env.evader_numbers
+                    evader_positions(:,i,step_count + 1) = env.evaders(i).position;
+                end
+                captured_evaders(:,step_count + 1) = env.captured_evaders';
+
+                if plot_flag
+                    set(pursuer_traj_plot, 'XData', pursuer_positions(1,1:step_count + 1), ...
+                        'YData', pursuer_positions(2,1:step_count + 1));
+                    set(pursuer_current_plot, 'XData', env.pursuer.position(1), ...
+                        'YData', env.pursuer.position(2));
+                    for i=1:env.evader_numbers
+                        evader_traj = squeeze(evader_positions(:,i,1:step_count + 1));
+                        set(evader_traj_plots(i), 'XData', evader_traj(1,:), ...
+                            'YData', evader_traj(2,:));
+                        set(evader_current_plots(i), 'XData', env.evaders(i).position(1), ...
+                            'YData', env.evaders(i).position(2));
+                    end
+                    drawnow
+                    pause(env.timestep)
+                end
+            end
+
+            final_index = step_count + 1;
+            history.time = time(1:final_index);
+            history.pursuer_positions = pursuer_positions(:,1:final_index);
+            history.evader_positions = evader_positions(:,:,1:final_index);
+            history.captured_evaders = captured_evaders(:,1:final_index);
+            history.target_position = env.target_position;
+            history.step_count = step_count;
+            history.terminated = done;
+
+            if done && all(env.captured_evaders)
+                history.termination_reason = "all_evaders_captured";
+            elseif done
+                history.termination_reason = "evader_reached_target";
+            else
+                history.termination_reason = "max_steps_reached";
+                warning("Simulation stopped after max_steps before termination.")
+            end
+
+            if plot_flag
+                hold off
             end
         end
 

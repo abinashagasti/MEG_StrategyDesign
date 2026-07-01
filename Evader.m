@@ -48,17 +48,11 @@ classdef Evader < handle
             if win && alpha==1
                 % Deals with the case when pursuer wins and pursuer and
                 % evader are of equal speeds
-                xc = (e.position(1)+pursuer_position(1))/2;
-                yc = (e.position(2)+pursuer_position(2))/2;
-                m = (e.position(2)-pursuer_position(2))/(e.position(1)-pursuer_position(1));
-
-                if m==Inf
-                    x_intercept = target_position(1);
-                    y_intercept = 0.5 * (pursuer_position(2) + e.position(2));
-                else
-                    x_intercept = (m*(yc - target_position(2))+xc+m^2*target_position(1))/(1+m^2);
-                    y_intercept = target_position(2) + m*(x_intercept - target_position(1));
-                end
+                relative_position = e.position - pursuer_position;
+                midpoint = 0.5*(e.position + pursuer_position);
+                intercept = target_position - relative_position*((target_position - midpoint)'*relative_position)/(relative_position'*relative_position);
+                x_intercept = intercept(1);
+                y_intercept = intercept(2);
                 
                 velocity = [x_intercept - e.position(1), y_intercept - e.position(2)]';
             elseif win && alpha<1
