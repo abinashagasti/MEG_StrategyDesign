@@ -204,7 +204,7 @@ classdef Pursuer < handle
         end
 
         function [velocity, theta] = heading_velocity(p, evader_positions, target_position, timestep, win, pursuer_policy)
-            if nargin < 7 || isempty(pursuer_policy)
+            if ~exist('pursuer_policy','var') || isempty(pursuer_policy)
                 pursuer_policy = "closest_next_step";
             end
             pursuer_policy = string(pursuer_policy);
