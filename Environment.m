@@ -215,14 +215,14 @@ classdef Environment < handle
 
             pursuer_positions = zeros(env.motion_space_dimension, max_steps + 1);
             evader_positions = zeros(env.motion_space_dimension, env.evader_numbers, max_steps + 1);
-            captured_evaders = false(env.evader_numbers, max_steps + 1);
+            captured_evader_history = false(env.evader_numbers, max_steps + 1);
             time = zeros(1, max_steps + 1);
 
             pursuer_positions(:,1) = env.pursuer.position;
             for i=1:env.evader_numbers
                 evader_positions(:,i,1) = env.evaders(i).position;
             end
-            captured_evaders(:,1) = env.captured_evaders';
+            captured_evader_history(:,1) = env.captured_evaders';
 
             if plot_flag
                 figure
@@ -256,7 +256,7 @@ classdef Environment < handle
                 for i=1:env.evader_numbers
                     evader_positions(:,i,step_count + 1) = env.evaders(i).position;
                 end
-                captured_evaders(:,step_count + 1) = env.captured_evaders';
+                captured_evader_history(:,step_count + 1) = env.captured_evaders';
 
                 if plot_flag
                     set(pursuer_traj_plot, 'XData', pursuer_positions(1,1:step_count + 1), ...
@@ -279,7 +279,7 @@ classdef Environment < handle
             history.time = time(1:final_index);
             history.pursuer_positions = pursuer_positions(:,1:final_index);
             history.evader_positions = evader_positions(:,:,1:final_index);
-            history.captured_evaders = captured_evaders(:,1:final_index);
+            history.captured_evaders = captured_evader_history(:,1:final_index);
             history.target_position = env.target_position;
             history.step_count = step_count;
             history.terminated = done;
