@@ -1,6 +1,6 @@
 clear
 clc
-% close all
+close all
 
 %%
 
@@ -10,9 +10,9 @@ n = 2; % Number of evaders
 % evader_positions = 1+3*randn(2,n);
 % target_position = [0;0];
 
-% pursuer_position = [0;1];
-% evader_positions = [2,-2;2,2];
-% target_position = [0;0];
+pursuer_position = [0;0];
+evader_positions = [2,-2;2,2];
+target_position = [1;-1];
 
 % Paper example 1
 % pursuer_position = [-0.45;-0.55];
@@ -25,9 +25,9 @@ n = 2; % Number of evaders
 % target_position = [-0.6;0];
 
 % Paper example 3
-pursuer_position = [0.55;-0.31];
-evader_positions = [0.63,-0.17;0.74,-0.9];
-target_position = [-0.2;0];
+% pursuer_position = [0.55;-0.31];
+% evader_positions = [0.63,-0.17;0.74,-0.9];
+% target_position = [-0.2;0];
 
 % System parameters
 timestep = 0.05;
@@ -36,5 +36,9 @@ tolerance = 0.1;
 env = Environment(n,timestep,tolerance,pursuer_position,evader_positions,target_position);
 
 %%
+
+pursuer_policy = "standard";
+% Options: "closest_next_step", "standard", "squaresum", "squaresump", "heuristic", "closest"
+env.set_pursuer_policy(pursuer_policy);
 
 [done, history] = env.simulate(10000, true);

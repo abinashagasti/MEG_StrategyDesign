@@ -11,6 +11,7 @@ classdef Environment < handle
         evaders % evader object array
         capture_tolerance % tolerance for point capture
         alpha % speed ratio array
+        pursuer_policy % pursuer heading policy used in step and simulate
         convex_optimization_flag % if the optimization in non-heuristic 
         % methods is over the subset of the pareto optimal set where all
         % di functions are concave
@@ -18,7 +19,36 @@ classdef Environment < handle
 
     methods
 
-        function env = Environment(n, timestep, tolerance, pursuer_position, evader_positions, target_position)
+        function env = Environment(n, timestep, varargin)
+            if numel(varargin) < 3
+                error("Wrong number of inputs for Environment.")
+            end
+
+            if isnumeric(varargin{1}) && isscalar(varargin{1})
+                if numel(varargin) < 4
+                    error("Environment inputs with tolerance must be: tolerance, pursuer_position, evader_positions, target_position.")
+                end
+                tolerance = varargin{1};
+                pursuer_position = varargin{2};
+                evader_positions = varargin{3};
+                target_position = varargin{4};
+                if numel(varargin) >= 5
+                    pursuer_policy = varargin{5};
+                else
+                    pursuer_policy = "closest_next_step";
+                end
+            else
+                tolerance = 0.01;
+                pursuer_position = varargin{1};
+                evader_positions = varargin{2};
+                target_position = varargin{3};
+                if numel(varargin) >= 4
+                    pursuer_policy = varargin{4};
+                else
+                    pursuer_policy = "closest_next_step";
+                end
+            end
+
             env.evader_numbers = n;
             env.motion_space_dimension = 2;
             env.pursuer_speed = 1;
@@ -29,6 +59,7 @@ classdef Environment < handle
             env.capture_tolerance = tolerance; 
             env.alpha = env.evader_speeds/env.pursuer_speed;
             env.convex_optimization_flag = 0;
+            env.pursuer_policy = string(pursuer_policy);
             % This is not required and must be removed in future iteration.
 
             % Initialize pursuer object instances 
@@ -70,6 +101,10 @@ classdef Environment < handle
             else
                 env.target_position = target_position;
             end
+        end
+
+        function set_pursuer_policy(env, pursuer_policy)
+            env.pursuer_policy = string(pursuer_policy);
         end
         
         function reset(env)
@@ -195,7 +230,7 @@ classdef Environment < handle
             % Check win condition to pass as input to determine agent
             % velocities
             win = env.check_initialization(env.evaders(evader_list(~env.captured_evaders)),false);
-            pursuer_velocity = env.pursuer.optimal_pursuer_heading(env.return_evader_positions(env.evaders(evader_list(~env.captured_evaders))),env.target_position,env.timestep,win);
+            pursuer_velocity = env.pursuer.heading_velocity(env.return_evader_positions(env.evaders(evader_list(~env.captured_evaders))),env.target_position,env.timestep,win,env.pursuer_policy);
             evader_velocities = env.return_evader_velocities();
             % Update agent positions after obtaining their velocities.
             env.pursuer.updatePos(env.pursuer.position + env.timestep*pursuer_velocity);
