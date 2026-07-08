@@ -37,7 +37,7 @@ env = Environment(n,timestep,tolerance,pursuer_position,evader_positions,target_
 
 %%
 
-pursuer_policy = "standard";
+pursuer_policy = "closest_next_step";
 % Options: "closest_next_step", "standard", "squaresum", "squaresump", "heuristic", "closest"
 env.set_pursuer_policy(pursuer_policy);
 
