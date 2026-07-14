@@ -2,8 +2,9 @@ clear
 clc
 
 %% Connect to EV3
-% myev3 = legoev3('wifi','192.168.0.154','00165347593f');
-myev3 = legoev3('wifi','192.168.0.154','00165347fbd9');
+evader1 = legoev3('wifi','192.168.0.108','00165347593f');
+% pursuer = legoev3('wifi','192.168.0.154','00165347fbd9');
+% evader2 = legoev3('wifi','192.168.0.197','00165348d9ee');
 
 %% Create motor objects
 mA = motor(myev3,'A');   % Left wheel

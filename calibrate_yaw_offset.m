@@ -57,7 +57,7 @@ offsets = nan(1,NREPS);         % NaN = rep excluded from the average
 for k = 1:NREPS
     fprintf("\n--- Push %d/%d ---\n", k, NREPS);
 
-    msg = receive(sub, 2);
+    msg = receive(sub, 3);
     [p0, yaw0] = readPose(msg, UP_AXIS);
 
     % Command PURE body-forward: [omega; vx; vy] = [0; PUSH_SPEED; 0]

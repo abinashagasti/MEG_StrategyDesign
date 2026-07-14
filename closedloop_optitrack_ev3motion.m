@@ -1,7 +1,12 @@
-function closedloop_optitrack_ev3motion(goal)
+function closedloop_optitrack_ev3motion(goal, reset)
 % Drive a single EV3 kiwi-drive bot to a goal using OptiTrack feedback.
 % NOTE: this is a FUNCTION (not a script) on purpose -- it makes the
 % onCleanup motor-stop fire on ANY exit: normal finish, error, or Ctrl-C.
+%
+% Usage:
+%   closedloop_optitrack_ev3motion([0.5; 0.3])       % go to (0.5,0.3)
+%   closedloop_optitrack_ev3motion([0.5; 0.3], true) % force a fresh connect
+% The EV3 and ROS2 connections persist between calls (see CONNECT below).
 clc
 
 %% ================= CONFIG =================
@@ -15,7 +20,7 @@ POSE_TOPIC = "/vrpn_mocap/pursuer/pose";
 % --- Coordinate frame ---
 UP_AXIS    = 'z';        % 'z' -> floor = (x,y);  'y' -> floor = (x,z)
 % YAW_OFFSET = -1.4085;    % rad, measured via calibrate_yaw_offset.m (-80.7 deg)
-YAW_OFFSET = -1.5;
+YAW_OFFSET = -1.7212;
 
 % --- Robot parameters (kiwi / 3-wheel omni) ---
 r = 0.025;               % wheel radius (m)
@@ -32,7 +37,7 @@ MOTOR_CLAMP     = 90;
 % --- Control law ---
 Kp   = 1.0;              % proportional position gain
 vmax = 0.15;             % max translational speed (m/s)
-tol  = 0.07;             % stop radius (m)
+tol  = 0.30;             % stop radius (m) -- generous for multi-bot / collision avoidance
 dt   = 0.05;             % control period (s)
 timeout = 60;            % abort after this many seconds
 
@@ -49,19 +54,43 @@ if numel(goal) ~= 2 || ~all(isfinite(goal))
     error("goal must be a 2-element finite vector, e.g. [0.5; 0.3].");
 end
 
-%% ================= CONNECT =================
-myev3 = legoev3('wifi', EV3_IP, EV3_SERIAL);
-mA = motor(myev3,'A');
-mB = motor(myev3,'B');
-mC = motor(myev3,'C');
+%% ================= CONNECT (persist across calls) =================
+% Creating the EV3 and ROS2 connections is slow, and re-creating the
+% "/matlab_node" while it already exists can error. Keep them in persistent
+% variables: the FIRST call builds them, later calls reuse them.
+% Force a fresh connection with reset=true (2nd arg) or by running
+% `clear closedloop_optitrack_ev3motion` -- e.g. after the EV3 reboots.
+persistent myev3 mA mB mC node sub
+if nargin >= 2 && ~isempty(reset) && reset
+    myev3 = []; mA = []; mB = []; mC = []; node = []; sub = [];
+end
+
+if isempty(myev3)
+    fprintf("Connecting to EV3...\n");
+    myev3 = legoev3('wifi', EV3_IP, EV3_SERIAL);
+    mA = motor(myev3,'A');
+    mB = motor(myev3,'B');
+    mC = motor(myev3,'C');
+else
+    fprintf("Reusing existing EV3 connection.\n");
+end
+
+if isempty(node)
+    fprintf("Creating ROS2 node...\n");
+    node = ros2node("/matlab_node");
+end
+if isempty(sub)
+    fprintf("Creating ROS2 subscriber on %s ...\n", POSE_TOPIC);
+    sub = ros2subscriber(node, POSE_TOPIC, "geometry_msgs/PoseStamped", ...
+                         "Reliability","besteffort");
+else
+    fprintf("Reusing existing ROS2 subscriber.\n");
+end
 
 % Local onCleanup -> fires on error, Ctrl-C, or normal return.
-% Registered right after the motors exist so any later failure stops them.
+% It only STOPS the motors; it does NOT tear down the persistent EV3/ROS
+% connections, so they survive for the next call.
 cleanup = onCleanup(@() stopMotors(mA,mB,mC)); %#ok<NASGU>
-
-node = ros2node("/matlab_node");
-sub  = ros2subscriber(node, POSE_TOPIC, "geometry_msgs/PoseStamped", ...
-                      "Reliability","besteffort");
 
 %% ================= INITIAL POSE =================
 msg = receive(sub, RECEIVE_TIMEOUT);
@@ -78,6 +107,7 @@ pause(2)
 start(mA); start(mB); start(mC);
 t_start = tic;
 miss = 0;
+last_stamp = -inf;       % for detecting a frozen (stale/duplicate) mocap feed
 
 while true
     % --- Robust pose read: a dropped frame stops the bot and retries,
@@ -93,6 +123,22 @@ while true
         end
         continue
     end
+    % Reject a FROZEN feed: if the message timestamp did not advance, the
+    % rigid body was lost but the last pose is being republished (or the same
+    % buffered message is returned). Treat it like a dropout instead of
+    % driving blind on stale data.
+    stamp = double(msg.header.stamp.sec) + double(msg.header.stamp.nanosec)*1e-9;
+    if stamp == last_stamp
+        miss = miss + 1;
+        stopMotors(mA,mB,mC);
+        warning("Stale/frozen mocap frame (%d/%d).", miss, MAX_MISS);
+        if miss >= MAX_MISS
+            error("Mocap feed frozen (rigid body lost?). Aborting.");
+        end
+        pause(dt);
+        continue
+    end
+    last_stamp = stamp;
     miss = 0;
 
     [pos, yaw] = readPose(msg, UP_AXIS);
@@ -140,9 +186,3 @@ stopMotors(mA,mB,mC);
 disp("Done.")
 end
 
-%% ================= HELPERS =================
-function stopMotors(mA,mB,mC)
-    try, stop(mA); end %#ok<*TRYNC>
-    try, stop(mB); end
-    try, stop(mC); end
-end
