@@ -19,7 +19,7 @@ classdef BotHardware < handle
         % Fields accepted in a config struct (see fromConfig).
         CONFIG_FIELDS = ["name","ev3_ip","ev3_serial","wheel_radius", ...
                          "wheel_offset","yaw_offset","wheel_ports", ...
-                         "motor_max_radps","motor_clamp","up_axis"];
+                         "motor_max_radps","motor_clamp","motor_deadband","up_axis"];
     end
 
     properties
@@ -39,6 +39,9 @@ classdef BotHardware < handle
         wheel_ports     (1,3) string = ["C","A","B"] % wheel k is driven by port wheel_ports(k)
         motor_max_radps (1,1) double = 16            % wheel rad/s at 100% duty
         motor_clamp     (1,1) double = 90            % max |motor percent|
+        motor_deadband  (1,1) double = 0             % min |duty| for a NONZERO wheel
+        % command (stiction breaker); 0 = off. Raise it for a bot whose wheels
+        % slip/stall from rest on a low-grip floor (e.g. tiles).
 
         % --- frame ---
         up_axis (1,1) char = 'z'   % 'z' -> floor = (x,y)
@@ -104,8 +107,9 @@ classdef BotHardware < handle
             end
 
             if isempty(bot.ev3)
-                fprintf("[%s] connecting to EV3 at %s ...\n", bot.name, bot.ev3_ip);
-                bot.ev3 = legoev3('wifi', char(bot.ev3_ip), char(bot.ev3_serial));
+                % Shared, per-brick connection: opened once and reused so we
+                % never hit the EV3's one-connection-at-a-time limit.
+                bot.ev3 = getEv3(bot.ev3_serial, bot.ev3_ip, reset);
                 bot.motors = cell(1,3);
                 for k = 1:3
                     bot.motors{k} = motor(bot.ev3, char(bot.wheel_ports(k)));
@@ -173,10 +177,24 @@ classdef BotHardware < handle
             % the bot spirals or diverges instead of driving to the goal.
             c = cos(bot.yaw + bot.yaw_offset);
             s = sin(bot.yaw + bot.yaw_offset);
-            v_body = [c s; -s c] * vel_world;   % [vx forward; vy left]
+            bot.drive_body([c s; -s c] * vel_world);
+        end
+
+        function drive_body(bot, vel_body)
+            % Commands a velocity in the ROBOT BODY frame ([vx forward; vy left]), m/s.
+            %
+            % This is the only way to move the bot WITHOUT knowing yaw_offset, so it
+            % is what calibrate_yaw_offset uses: it pushes along body-forward and then
+            % measures which way the world says the bot actually went. drive() is just
+            % this, with the world->body rotation applied first.
+            vel_body = vel_body(:);
+            if numel(vel_body) ~= 2 || ~all(isfinite(vel_body))
+                error("BotHardware:badVelocity", ...
+                      "[%s] drive_body() needs a finite 2-element velocity.", bot.name)
+            end
 
             omega = 0;   % holonomic drive: heading is not regulated
-            wheel_omega = bot.jacobian() * [omega; v_body(1); v_body(2)];
+            wheel_omega = bot.jacobian() * [omega; vel_body(1); vel_body(2)];
 
             pct = 100 * wheel_omega / bot.motor_max_radps;
             pct = max(min(pct, bot.motor_clamp), -bot.motor_clamp);
@@ -185,6 +203,22 @@ classdef BotHardware < handle
 
         function set_wheel_percent(bot, pct)
             % pct(k) is the duty cycle for WHEEL k, which motors{k} is wired to.
+            %
+            % Stiction floor: if the whole wheel command is too weak to move the
+            % bot from rest, scale ALL wheels up so the LARGEST reaches
+            % motor_deadband. Scaling (not per-wheel clamping) preserves the wheel
+            % ratios, so the motion DIRECTION is unchanged -- a wheel that should
+            % be ~0 stays ~0 (no spurious rotation). Only activates when every
+            % wheel is below the floor, i.e. the from-rest stall case. Applied
+            % here, the single point every motor write passes through, so both
+            % drive() and drive_body() (calibration) get it.
+            if bot.motor_deadband > 0
+                peak = max(abs(pct));
+                if peak > 1e-3 && peak < bot.motor_deadband
+                    pct = pct * (bot.motor_deadband / peak);
+                end
+            end
+
             if ~bot.running
                 for k = 1:3
                     start(bot.motors{k});

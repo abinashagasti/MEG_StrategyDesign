@@ -15,5 +15,9 @@ prefdir/
 # Build artifacts
 build/
 
+# Saved run histories (experiment data)
+results/
+*.mat
+
 # Temporary files
 *.tmp
