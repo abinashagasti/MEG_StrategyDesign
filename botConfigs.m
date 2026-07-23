@@ -29,7 +29,9 @@ function cfg = botConfigs(name)
         'wheel_radius',    0.025, ...
         'wheel_offset',    0.14, ...
         'yaw_offset',      -1.5923, ...   % TODO: stale after the re-wand -- re-measure
-        'motor_max_radps', 8.5);       % TODO: measured ~47% of commanded -> expect ~7.5
+        'motor_max_radps', 8, ...       % TODO: measured ~47% of commanded -> expect ~7.5
+        'hold_heading',    false, ...     % heading-hold off (this bot doesn't swerve)
+        'heading_gain',    1.5);          % Kpsi, only used when hold_heading is true
 
     bots.evader1 = struct( ...
         'name',            "evader1", ...
@@ -38,7 +40,9 @@ function cfg = botConfigs(name)
         'wheel_radius',    0.025, ...  % TODO: measure this bot's actual wheel
         'wheel_offset',    0.14, ...   % TODO: measure centre-to-wheel
         'yaw_offset',      -1.6272, ...    % TODO: run calibrate_yaw_offset("evader1")
-        'motor_max_radps', 8.5);
+        'motor_max_radps', 9.2, ...
+        'hold_heading',    false, ...      % heading-hold off
+        'heading_gain',    1.5);           % Kpsi, only used when hold_heading is true
 
     bots.evader2 = struct( ...
         'name',            "evader2", ...
@@ -46,8 +50,10 @@ function cfg = botConfigs(name)
         'ev3_serial',      "00165348d9ee", ...
         'wheel_radius',    0.025, ...  % TODO: measure this bot's actual wheel
         'wheel_offset',    0.14, ...   % TODO: measure centre-to-wheel
-        'yaw_offset',      -0.9078, ...    % TODO: run calibrate_yaw_offset("evader2")
-        'motor_max_radps', 12);
+        'yaw_offset',      -1.547, ...    % TODO: run calibrate_yaw_offset("evader2")
+        'motor_max_radps', 11.4, ...
+        'hold_heading',    false, ...      % this bot SWERVES -> set true once tuned
+        'heading_gain',    -2.5);           % TUNE via closedloop(...,heading_gain=..), then set here
 
     if nargin < 1 || isempty(name)
         cfg = bots;

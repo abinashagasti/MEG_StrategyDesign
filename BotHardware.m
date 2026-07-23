@@ -19,7 +19,8 @@ classdef BotHardware < handle
         % Fields accepted in a config struct (see fromConfig).
         CONFIG_FIELDS = ["name","ev3_ip","ev3_serial","wheel_radius", ...
                          "wheel_offset","yaw_offset","wheel_ports", ...
-                         "motor_max_radps","motor_clamp","motor_deadband","up_axis"];
+                         "motor_max_radps","motor_clamp","motor_deadband", ...
+                         "hold_heading","heading_gain","up_axis"];
     end
 
     properties
@@ -43,6 +44,13 @@ classdef BotHardware < handle
         % command (stiction breaker); 0 = off. Raise it for a bot whose wheels
         % slip/stall from rest on a low-grip floor (e.g. tiles).
 
+        % --- heading hold (cancels a bot that rotates while translating) ---
+        hold_heading (1,1) logical = false  % regulate omega to hold a fixed heading
+        heading_gain (1,1) double  = 1.5    % Kpsi (rad/s per rad of yaw error);
+        % TUNE this (like Kp), don't calibrate it. Too low -> heading still drifts;
+        % too high -> the bot wags (heading oscillates via the actuator lag). If
+        % enabling it makes the spin WORSE, flip the sign (wheel convention).
+
         % --- frame ---
         up_axis (1,1) char = 'z'   % 'z' -> floor = (x,y)
     end
@@ -55,6 +63,7 @@ classdef BotHardware < handle
         yaw (1,1) double = NaN         % last good yaw (rad)
         last_stamp (1,1) double = -inf % header stamp of the last good frame (s)
         miss (1,1) double = 0          % consecutive bad/stale frames
+        yaw_ref (1,1) double = NaN     % heading held by hold_heading (captured at first drive)
         running (1,1) logical = false  % are the motors started?
     end
 
@@ -177,28 +186,42 @@ classdef BotHardware < handle
             % the bot spirals or diverges instead of driving to the goal.
             c = cos(bot.yaw + bot.yaw_offset);
             s = sin(bot.yaw + bot.yaw_offset);
-            bot.drive_body([c s; -s c] * vel_world);
+            bot.drive_body([c s; -s c] * vel_world, bot.heading_omega());
         end
 
-        function drive_body(bot, vel_body)
-            % Commands a velocity in the ROBOT BODY frame ([vx forward; vy left]), m/s.
+        function drive_body(bot, vel_body, omega)
+            % Commands a velocity in the ROBOT BODY frame ([vx forward; vy left]),
+            % m/s, with an optional body yaw-rate omega (rad/s, default 0).
             %
             % This is the only way to move the bot WITHOUT knowing yaw_offset, so it
             % is what calibrate_yaw_offset uses: it pushes along body-forward and then
             % measures which way the world says the bot actually went. drive() is just
-            % this, with the world->body rotation applied first.
+            % this, with the world->body rotation and heading-hold omega applied first.
+            if nargin < 3, omega = 0; end
             vel_body = vel_body(:);
             if numel(vel_body) ~= 2 || ~all(isfinite(vel_body))
                 error("BotHardware:badVelocity", ...
                       "[%s] drive_body() needs a finite 2-element velocity.", bot.name)
             end
 
-            omega = 0;   % holonomic drive: heading is not regulated
             wheel_omega = bot.jacobian() * [omega; vel_body(1); vel_body(2)];
 
             pct = 100 * wheel_omega / bot.motor_max_radps;
             pct = max(min(pct, bot.motor_clamp), -bot.motor_clamp);
             bot.set_wheel_percent(pct);
+        end
+
+        function omega = heading_omega(bot)
+            % Body yaw-rate to hold a fixed heading; 0 when hold_heading is off.
+            % Captures the reference heading on first use (holds wherever it starts)
+            % so the bot stops rotating while it translates -> straight-line motion.
+            omega = 0;
+            if bot.hold_heading
+                if ~isfinite(bot.yaw_ref)
+                    bot.yaw_ref = bot.yaw;
+                end
+                omega = bot.heading_gain * wrapToPi(bot.yaw_ref - bot.yaw);
+            end
         end
 
         function set_wheel_percent(bot, pct)

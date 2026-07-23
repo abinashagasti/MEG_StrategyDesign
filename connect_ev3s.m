@@ -14,7 +14,7 @@ function ev3s = connect_ev3s(names, opts)
 % the issue turns out to be the reconnect/interleave).
 
     arguments
-        names (1,:) string = ["evader2","evader1","pursuer"]
+        names (1,:) string = ["pursuer","evader1","evader2"]
         opts.pause_between (1,1) double  = 2      % s to wait between bricks
         opts.retries       (1,1) double  = 3      % attempts per brick
         opts.retry_wait    (1,1) double  = 3      % s between attempts
@@ -48,5 +48,14 @@ function ev3s = connect_ev3s(names, opts)
         pause(opts.pause_between);   % breathe before the next brick
     end
 
-    fprintf("\nConnected bricks: %s\n", strjoin(string(fieldnames(ev3s))', ", "));
+    % Battery summary for all connected bricks (handy for the matched-battery
+    % check -- similar charge keeps the speed ratio alpha ~ 1 as they drain).
+    connected_names = string(fieldnames(ev3s))';
+    fprintf("\nConnected bricks: %s\n", strjoin(connected_names, ", "));
+    if ~isempty(connected_names)
+        fprintf("\n--- Battery levels ---\n");
+        for nm = connected_names
+            fprintf("  %-10s %3d%%\n", nm, ev3s.(char(nm)).BatteryLevel);
+        end
+    end
 end

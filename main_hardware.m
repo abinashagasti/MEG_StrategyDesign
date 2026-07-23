@@ -28,16 +28,17 @@ evader_cfgs = {botConfigs("evader1"), botConfigs("evader2")};
 %% ================= GAME SETUP =================
 % Agent start positions are NOT set here: they are read from mocap when the
 % environment is built. Only the target is ours to choose (in mocap coordinates).
-target_position = [-0.25;0.5];
+% target_position = [0;0.5];
+target_position = [-0.5;1];
 
 % Sanity-check the target against the arena before running: put it somewhere the
 % bots can actually reach, well inside the tracked volume.
-arena_limits = [-1.5 1.5 -1 1];        % [xmin xmax ymin ymax] (m); [] to disable the geo-fence
+arena_limits = [-1.5 1.5 -1.5 1.5];        % [xmin xmax ymin ymax] (m); [] to disable the geo-fence
 
 env = env_hardware(pursuer_cfg, evader_cfgs, target_position, ...
     'timestep',   0.05, ...        % control period (s)
-    'tolerance',  0.45, ...        % capture radius (m) -- big bots, also avoids collisions
-    'max_speed',  0.15, ...        % m/s for BOTH pursuer and evaders (keeps alpha = 1)
+    'tolerance',  0.5, ...        % capture radius (m) -- big bots, also avoids collisions
+    'max_speed',  0.18, ...        % m/s for BOTH pursuer and evaders (keeps alpha = 1)
     'policy',     "closest_next_step", ...
     'arena_limits', arena_limits, ...
     'reset',      false);          % true forces fresh EV3/ROS connections
