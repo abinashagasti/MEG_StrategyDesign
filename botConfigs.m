@@ -11,14 +11,24 @@ function cfg = botConfigs(name)
 %   name             mocap rigid body name -> topic /vrpn_mocap/<name>/pose
 %   ev3_ip           EV3 wifi address (DHCP: re-check on the brick if it changes)
 %   ev3_serial       EV3 serial number
-%   wheel_radius     r (m)
-%   wheel_offset     L, centre-to-wheel (m)
+%   wheel_radius     r (m)  -- nominal; see note below
+%   wheel_offset     L, centre-to-wheel (m) -- nominal; see note below
 %   yaw_offset       rad, from calibrate_yaw_offset(<name>)
 %   motor_max_radps  wheel rad/s at 100% duty, from calibrate_yaw_offset(<name>)
+% Optional (BotHardware defaults in brackets): motor_deadband [0], motor_clamp
+% [90], wheel_ports [["C","A","B"]], up_axis ['z'].
 %
-% NOTE: yaw_offset is measured against the CURRENT Motive ground plane and the
-% CURRENT rigid body definition. Re-wanding, re-setting the ground plane, or
-% recreating a rigid body INVALIDATES it -- re-run the calibration.
+% NOTES
+%  - yaw_offset is tied to the CURRENT Motive ground plane and rigid body
+%    definition. Re-wanding, re-setting the ground plane, or recreating a rigid
+%    body INVALIDATES it -- re-run calibrate_yaw_offset for that bot.
+%  - motor_max_radps drifts with BATTERY level (open-loop). For a fair game keep
+%    the bots at similar charge; recalibrate at session start if you want it
+%    tight. It is calibrated at push_speed = the operating speed (currently 0.18).
+%  - wheel_radius / wheel_offset are NOMINAL placeholders (not per-bot measured).
+%    That's fine: for pure translation the radius error is absorbed into the
+%    calibrated motor_max_radps. Only measure them per bot if you reintroduce a
+%    heading (omega) controller, which uses the L/r ratio directly.
 
     bots = struct();
 
@@ -26,34 +36,28 @@ function cfg = botConfigs(name)
         'name',            "pursuer", ...
         'ev3_ip',          "192.168.0.154", ...
         'ev3_serial',      "00165347fbd9", ...
-        'wheel_radius',    0.025, ...
-        'wheel_offset',    0.14, ...
-        'yaw_offset',      -1.5923, ...   % TODO: stale after the re-wand -- re-measure
-        'motor_max_radps', 8, ...       % TODO: measured ~47% of commanded -> expect ~7.5
-        'hold_heading',    false, ...     % heading-hold off (this bot doesn't swerve)
-        'heading_gain',    1.5);          % Kpsi, only used when hold_heading is true
+        'wheel_radius',    0.025, ...      % nominal
+        'wheel_offset',    0.14, ...       % nominal
+        'yaw_offset',      -1.5923, ...    % calibrated
+        'motor_max_radps', 8);            % calibrated
 
     bots.evader1 = struct( ...
         'name',            "evader1", ...
         'ev3_ip',          "192.168.0.108", ...
-        'ev3_serial',      "00165347c4f7", ....% "00165347593f", ...
-        'wheel_radius',    0.025, ...  % TODO: measure this bot's actual wheel
-        'wheel_offset',    0.14, ...   % TODO: measure centre-to-wheel
-        'yaw_offset',      -1.6272, ...    % TODO: run calibrate_yaw_offset("evader1")
-        'motor_max_radps', 9.2, ...
-        'hold_heading',    false, ...      % heading-hold off
-        'heading_gain',    1.5);           % Kpsi, only used when hold_heading is true
+        'ev3_serial',      "00165347c4f7", ...  % (was 00165347593f before brick swap)
+        'wheel_radius',    0.025, ...      % nominal
+        'wheel_offset',    0.14, ...       % nominal
+        'yaw_offset',      -1.6272, ...    % calibrated
+        'motor_max_radps', 9.2);          % calibrated
 
     bots.evader2 = struct( ...
         'name',            "evader2", ...
         'ev3_ip',          "192.168.0.197", ...
         'ev3_serial',      "00165348d9ee", ...
-        'wheel_radius',    0.025, ...  % TODO: measure this bot's actual wheel
-        'wheel_offset',    0.14, ...   % TODO: measure centre-to-wheel
-        'yaw_offset',      -1.547, ...    % TODO: run calibrate_yaw_offset("evader2")
-        'motor_max_radps', 11.4, ...
-        'hold_heading',    false, ...      % this bot SWERVES -> set true once tuned
-        'heading_gain',    -2.5);           % TUNE via closedloop(...,heading_gain=..), then set here
+        'wheel_radius',    0.025, ...      % nominal
+        'wheel_offset',    0.14, ...       % nominal
+        'yaw_offset',      -1.547, ...     % calibrated
+        'motor_max_radps', 11.4);         % calibrated
 
     if nargin < 1 || isempty(name)
         cfg = bots;

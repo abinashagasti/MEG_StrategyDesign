@@ -26,8 +26,6 @@ function history = closedloop_optitrack_ev3motion(bot_name, goal, opts)
         opts.receive_timeout (1,1) double = 2
         opts.max_miss        (1,1) double = 10     % consecutive bad frames before abort
         opts.reset           (1,1) logical = false % force fresh EV3/ROS connections
-        opts.heading_gain    (1,1) double = NaN    % override botConfigs heading_gain (tuning)
-        opts.hold_heading                  = []    % [] = use config; true/false to override
     end
 
     goal = goal(:);
@@ -37,19 +35,6 @@ function history = closedloop_optitrack_ev3motion(bot_name, goal, opts)
 
     %% ---------- connect ----------
     bot  = BotHardware.fromConfig(botConfigs(bot_name));  % errors if yaw_offset is NaN
-
-    % Heading-hold overrides for quick tuning without editing botConfigs.m.
-    % Passing a gain implies you want the hold ON (unless you say otherwise).
-    if ~isnan(opts.heading_gain)
-        bot.heading_gain = opts.heading_gain;
-        if isempty(opts.hold_heading)
-            bot.hold_heading = true;
-        end
-    end
-    if ~isempty(opts.hold_heading)
-        bot.hold_heading = logical(opts.hold_heading);
-    end
-
     node = getMocapNode(opts.reset);
     bot.connect(node, opts.reset);
 

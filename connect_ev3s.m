@@ -12,6 +12,13 @@ function ev3s = connect_ev3s(names, opts)
 % Uses getEv3, so successful connections are CACHED -- a subsequent
 % main_hardware will reuse them instead of reconnecting (a handy workaround if
 % the issue turns out to be the reconnect/interleave).
+%
+% MULTI-BRICK CONNECTION FIX (do this once per machine; it persists):
+%   setpref('MathWorks_LEGO_EV3', 'IO_WAIT_PAUSE', 0.005);
+% Widens the EV3 unlock-handshake window to ~0.5 s (100 x 0.005). The stock
+% 0.00001 default gives only a ~1 ms window, so the 2nd/3rd brick's reply lands
+% too late and connection fails. It only affects read polling, so it doesn't
+% slow the motor-only control loop.
 
     arguments
         names (1,:) string = ["pursuer","evader1","evader2"]

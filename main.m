@@ -69,30 +69,3 @@ pursuer_policy = "closest_next_step";
 env.set_pursuer_policy(pursuer_policy);
 
 [done, history] = env.simulate(10000, true);
-
-%% ================= HELPERS =================
-function positions = readMocapPoses(node, names, up_axis)
-    % One-shot read of several rigid bodies' floor positions from OptiTrack.
-    %
-    % Creates ALL subscribers first and keeps them alive together, with a short
-    % pause for DDS discovery before reading. Creating/destroying a subscriber
-    % per body in a loop (as a one-shot helper would) churns the transport and
-    % throws "Transport stopped" -- this mirrors ros2_test.m's create-then-read.
-    if nargin < 3, up_axis = 'z'; end
-    names = string(names);
-    m     = numel(names);
-
-    subs = cell(1, m);
-    for k = 1:m
-        topic   = "/vrpn_mocap/" + names(k) + "/pose";
-        subs{k} = ros2subscriber(node, topic, "geometry_msgs/PoseStamped", ...
-                                  "Reliability", "besteffort");
-    end
-    pause(0.5);   % let DDS discover the publishers before the first receive
-
-    positions = zeros(2, m);
-    for k = 1:m
-        msg = receive(subs{k}, 3);
-        positions(:,k) = readPose(msg, up_axis);   % readPose returns [pos, yaw, raw]
-    end
-end
