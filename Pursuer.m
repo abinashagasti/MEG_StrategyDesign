@@ -236,6 +236,7 @@ classdef Pursuer < handle
                 end
                 velocity = p.speed*[cos(theta);sin(theta)];
             else
+                fprintf('Heading towards target as it is in a compromisable position')
                 velocity = target_position - p.position;
                 velocity = (p.speed/norm(velocity))*velocity;
                 theta = atan2(velocity(2),velocity(1));
