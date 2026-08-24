@@ -43,8 +43,31 @@ classdef Evader < handle
             position = e.position;
         end
 
-        function [velocity, psi] = heading_velocity(e, pursuer_position, target_position, win, alpha)
+        function [velocity, psi] = heading_velocity(e, pursuer_position, target_position, win, alpha, evader_policy)
             % Returns evader optimal velocity and heading direction
+            if ~exist('evader_policy','var') || isempty(evader_policy)
+                evader_policy = "optimal";
+            end
+            evader_policy = string(evader_policy);
+            if matches(evader_policy,"straight_to_target")
+                % Ignores win/alpha and the pursuer entirely -- heads
+                % straight at the target every step.
+                sz_target = size(target_position);
+                sz_pos = size(e.position);
+                if sz_target~=sz_pos
+                    if sz_target==fliplr(sz_pos)
+                        target_position = target_position';
+                    else
+                        disp('Wrong target position dimensions.')
+                    end
+                end
+                velocity = target_position - e.position;
+                velocity = (e.speed/norm(velocity,2))*(velocity);
+                psi = atan2(velocity(2),velocity(1));
+                return
+            elseif ~matches(evader_policy,"optimal")
+                error("Unknown evader policy. Choose optimal or straight_to_target.")
+            end
             if win && alpha==1
                 % Deals with the case when pursuer wins and pursuer and
                 % evader are of equal speeds

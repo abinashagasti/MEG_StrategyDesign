@@ -9,9 +9,12 @@ classdef Environment < handle
         captured_evaders % boolean array containing capture status of evaders
         pursuer % pursuer object
         evaders % evader object array
-        capture_tolerance % tolerance for point capture
+        capture_tolerance % tolerance for pursuer capturing an evader
+        target_capture_tolerance % tolerance for an evader capturing (reaching) the target; fixed, not settable from main
         alpha % speed ratio array
         pursuer_policy % pursuer heading policy used in step and simulate
+        evader_policy % evader heading policy used in step and simulate
+        pursuer_win_state % last-printed pursuer win flag; [] means "not printed yet this run"
         convex_optimization_flag % if the optimization in non-heuristic 
         % methods is over the subset of the pareto optimal set where all
         % di functions are concave
@@ -56,10 +59,24 @@ classdef Environment < handle
             env.timestep = timestep;
             env.captured_evaders = boolean(zeros(1,env.evader_numbers));
             env.evaders = Evader.empty(env.evader_numbers,0);
-            env.capture_tolerance = tolerance; 
+            env.capture_tolerance = tolerance;
+            % Fixed, not settable from main. An evader closing on the target
+            % moves a full step s = speed*timestep per iteration with no
+            % clamping to the remaining distance, so once it's within s of
+            % the target it overshoots and the pre-step distance enters a
+            % period-2 oscillation between d and s-d that never reaches 0.
+            % Once inside range s, every subsequent check is bounded by s
+            % (since |s-d| <= s for 0<=d<=s), so any tolerance > s catches
+            % it on the next check; a 10% margin keeps it clear of the exact
+            % boundary case. Uses max(evader_speeds) so it stays correct if
+            % evader speeds ever differ or timestep/speed change (e.g. on
+            % hardware, where speed*timestep is much smaller than in sim).
+            env.target_capture_tolerance = 1.1 * max(env.evader_speeds) * timestep;
             env.alpha = env.evader_speeds/env.pursuer_speed;
             env.convex_optimization_flag = 0;
             env.pursuer_policy = string(pursuer_policy);
+            env.evader_policy = "optimal";
+            env.pursuer_win_state = [];
             % This is not required and must be removed in future iteration.
 
             % Initialize pursuer object instances 
@@ -105,6 +122,10 @@ classdef Environment < handle
 
         function set_pursuer_policy(env, pursuer_policy)
             env.pursuer_policy = string(pursuer_policy);
+        end
+
+        function set_evader_policy(env, evader_policy)
+            env.evader_policy = string(evader_policy);
         end
         
         function reset(env)
@@ -186,7 +207,7 @@ classdef Environment < handle
             for i=1:env.evader_numbers
                 win = env.check_initialization(env.evaders(i),false);
                 % win = true;
-                evader_velocities(:,i) = env.evaders(i).heading_velocity(env.pursuer.position, env.target_position,win,env.alpha(i));
+                evader_velocities(:,i) = env.evaders(i).heading_velocity(env.pursuer.position, env.target_position,win,env.alpha(i),env.evader_policy);
             end
         end
 
@@ -219,7 +240,7 @@ classdef Environment < handle
             % reached the target. 
             if ~done
                 for i=evader_list(~env.captured_evaders)
-                    if norm(env.evaders(i).position- env.target_position)<env.capture_tolerance && norm(env.pursuer.position-env.target_position)>2*env.capture_tolerance
+                    if norm(env.evaders(i).position- env.target_position)<env.target_capture_tolerance && norm(env.pursuer.position-env.target_position)>2*env.target_capture_tolerance
                         done = true;
                         disp_message = strcat(env.evaders(i).name,' reached the target.');
                         disp(disp_message)
@@ -230,6 +251,18 @@ classdef Environment < handle
             % Check win condition to pass as input to determine agent
             % velocities
             win = env.check_initialization(env.evaders(evader_list(~env.captured_evaders)),false);
+            % Print only when the pursuer's mode actually flips, not every
+            % step -- this branch decides whether Pursuer.heading_velocity
+            % uses pursuer_policy's intercept logic (win=true) or just
+            % beelines to the target (win=false, see its "else" fallback).
+            if isempty(env.pursuer_win_state) || win ~= env.pursuer_win_state
+                if win
+                    fprintf('[pursuer] intercepting -- heading toward nearest capture step (policy: %s)\n', env.pursuer_policy);
+                else
+                    fprintf('[pursuer] target in evader dominance region -- heading straight toward target\n');
+                end
+                env.pursuer_win_state = win;
+            end
             pursuer_velocity = env.pursuer.heading_velocity(env.return_evader_positions(env.evaders(evader_list(~env.captured_evaders))),env.target_position,env.timestep,win,env.pursuer_policy);
             evader_velocities = env.return_evader_velocities();
             % Update agent positions after obtaining their velocities.
@@ -247,6 +280,7 @@ classdef Environment < handle
             if nargin < 3 || isempty(plot_flag)
                 plot_flag = false;
             end
+            env.pursuer_win_state = []; % force a fresh mode print on this run's first step
 
             pursuer_positions = zeros(env.motion_space_dimension, max_steps + 1);
             evader_positions = zeros(env.motion_space_dimension, env.evader_numbers, max_steps + 1);
