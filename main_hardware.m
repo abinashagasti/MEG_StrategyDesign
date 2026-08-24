@@ -21,15 +21,23 @@ clc
 % Pulled from botConfigs.m -- the single source of truth, kept current by the
 % calibration workflow (yaw_offset, motor_max_radps, motor_deadband per bot).
 % Do NOT re-type constants here; edit botConfigs.m instead.
-pursuer_cfg = botConfigs("pursuer");
-evader_cfgs = {botConfigs("evader1"), botConfigs("evader2")};
-% evader_cfgs = {botConfigs("evader1")};
+
+% --- TEMPORARY DEMO: pursuer brick's batteries are dead -----------------------
+% evader2's PHYSICAL bot plays the pursuer (its EV3, its /vrpn_mocap/evader2/pose,
+% its calibration). evader1 is the only evader. The real pursuer brick (.154) is
+% never touched. Revert by restoring the two "normal" lines below.
+pursuer_cfg = botConfigs("evader1");
+evader_cfgs = {botConfigs("evader2")};
+
+% --- Normal 3-bot config (restore after the demo) ---
+% pursuer_cfg = botConfigs("pursuer");
+% evader_cfgs = {botConfigs("evader1"), botConfigs("evader2")};
 
 %% ================= GAME SETUP =================
 % Agent start positions are NOT set here: they are read from mocap when the
 % environment is built. Only the target is ours to choose (in mocap coordinates).
 % target_position = [0;0.5];
-target_position = [-0.5;1];
+target_position = [-0.5;0.5];
 
 % Sanity-check the target against the arena before running: put it somewhere the
 % bots can actually reach, well inside the tracked volume.
