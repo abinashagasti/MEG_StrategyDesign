@@ -21,3 +21,22 @@ results/
 
 # Temporary files
 *.tmp
+
+# Image files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tif
+*.tiff
+*.svg
+*.eps
+
+# Paper audit: track only the generating scripts (*.m) and the written
+# summaries (*.md); all other outputs (logs, result text, figures, .mat)
+# are regenerable
+paper_audit/**
+!paper_audit/**/
+!paper_audit/**/*.m
+!paper_audit/**/*.md
